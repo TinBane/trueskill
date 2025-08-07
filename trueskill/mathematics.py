@@ -14,12 +14,12 @@ from __future__ import absolute_import
 
 import copy
 import math
+from typing import Optional, Union, Callable, Dict, List, Tuple
+
 try:
     from numbers import Number
 except ImportError:
-    Number = (int, long, float, complex)
-
-
+    Number = (int, float, complex)
 
 
 __all__ = ['Gaussian', 'Matrix', 'inf']
@@ -29,14 +29,10 @@ inf = float('inf')
 
 
 class Gaussian(object):
+    __slots__ = ('pi', 'tau', '_mu', '_sigma')
     """A model for the normal distribution."""
 
-    #: Precision, the inverse of the variance.
-    pi = 0
-    #: Precision adjusted mean, the precision multiplied by the mean.
-    tau = 0
-
-    def __init__(self, mu=None, sigma=None, pi=0, tau=0):
+    def __init__(self, mu: Optional[float] = None, sigma: Optional[float] = None, pi: float = 0, tau: float = 0) -> None:
         if mu is not None:
             if sigma is None:
                 raise TypeError('sigma argument is needed')
@@ -46,28 +42,34 @@ class Gaussian(object):
             tau = pi * mu
         self.pi = pi
         self.tau = tau
+        self._mu = None
+        self._sigma = None
 
     @property
-    def mu(self):
+    def mu(self) -> float:
         """A property which returns the mean."""
-        return self.pi and self.tau / self.pi
+        if self._mu is None:
+            self._mu = self.pi and self.tau / self.pi
+        return self._mu
 
     @property
-    def sigma(self):
+    def sigma(self) -> float:
         """A property which returns the the square root of the variance."""
-        return math.sqrt(1 / self.pi) if self.pi else inf
+        if self._sigma is None:
+            self._sigma = math.sqrt(1 / self.pi) if self.pi else inf
+        return self._sigma
 
-    def __mul__(self, other):
+    def __mul__(self, other: 'Gaussian') -> 'Gaussian':
         pi, tau = self.pi + other.pi, self.tau + other.tau
         return Gaussian(pi=pi, tau=tau)
 
-    def __truediv__(self, other):
+    def __truediv__(self, other: 'Gaussian') -> 'Gaussian':
         pi, tau = self.pi - other.pi, self.tau - other.tau
         return Gaussian(pi=pi, tau=tau)
 
     __div__ = __truediv__  # for Python 2
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return self.pi == other.pi and self.tau == other.tau
 
     def __lt__(self, other):
@@ -91,9 +93,10 @@ class Gaussian(object):
 
 
 class Matrix(list):
+    __slots__ = ()
     """A model for matrix."""
 
-    def __init__(self, src, height=None, width=None):
+    def __init__(self, src: Union[Callable, List[List[Union[int, float]]], Dict[Tuple[int, int], Union[int, float]]], height: Optional[int] = None, width: Optional[int] = None) -> None:
         if callable(src):
             f, src = src, {}
             size = [height, width]
@@ -109,12 +112,12 @@ class Matrix(list):
                 for (r, c), val in f(*size):
                     src[r, c] = val
             except TypeError:
-                raise TypeError('A callable src must return an interable '
-                                'which generates a tuple containing '
+                raise TypeError('A callable src must return an interable ' 
+                                'which generates a tuple containing ' 
                                 'coordinate and value')
             height, width = tuple(size)
             if height is None or width is None:
-                raise TypeError('A callable src must call set_height and '
+                raise TypeError('A callable src must call set_height and ' 
                                 'set_width if the size is non-deterministic')
         if isinstance(src, list):
             is_number = lambda x: isinstance(x, Number)
@@ -146,14 +149,14 @@ class Matrix(list):
         super(Matrix, self).__init__(two_dimensional_array)
 
     @property
-    def height(self):
+    def height(self) -> int:
         return len(self)
 
     @property
-    def width(self):
+    def width(self) -> int:
         return len(self[0])
 
-    def transpose(self):
+    def transpose(self) -> 'Matrix':
         height, width = self.height, self.width
         src = {}
         for c in range(width):
@@ -161,7 +164,7 @@ class Matrix(list):
                 src[c, r] = self[r][c]
         return type(self)(src, height=width, width=height)
 
-    def minor(self, row_n, col_n):
+    def minor(self, row_n: int, col_n: int) -> 'Matrix':
         height, width = self.height, self.width
         if not (0 <= row_n < height):
             raise ValueError('row_n should be between 0 and %d' % height)
@@ -179,7 +182,7 @@ class Matrix(list):
                 row.append(self[r][c])
         return type(self)(two_dimensional_array)
 
-    def determinant(self):
+    def determinant(self) -> float:
         height, width = self.height, self.width
         if height != width:
             raise ValueError('Only square matrix can calculate a determinant')
@@ -200,7 +203,7 @@ class Matrix(list):
                     tmp[r][x] += f * tmp[c][x]
         return rv * tmp[0][0]
 
-    def adjugate(self):
+    def adjugate(self) -> 'Matrix':
         height, width = self.height, self.width
         if height != width:
             raise ValueError('Only square matrix can be adjugated')
@@ -215,12 +218,12 @@ class Matrix(list):
                 src[r, c] = self.minor(r, c).determinant() * sign
         return type(self)(src, height, width)
 
-    def inverse(self):
+    def inverse(self) -> 'Matrix':
         if self.height == self.width == 1:
             return type(self)([[1. / self[0][0]]])
         return (1. / self.determinant()) * self.adjugate()
 
-    def __add__(self, other):
+    def __add__(self, other: 'Matrix') -> 'Matrix':
         height, width = self.height, self.width
         if (height, width) != (other.height, other.width):
             raise ValueError('Must be same size')
@@ -230,7 +233,7 @@ class Matrix(list):
                 src[r, c] = self[r][c] + other[r][c]
         return type(self)(src, height, width)
 
-    def __mul__(self, other):
+    def __mul__(self, other: 'Matrix') -> 'Matrix':
         if self.width != other.height:
             raise ValueError('Bad size')
         height, width = self.height, other.width
@@ -241,7 +244,7 @@ class Matrix(list):
                                 for x in range(self.width))
         return type(self)(src, height, width)
 
-    def __rmul__(self, other):
+    def __rmul__(self, other: Union[int, float]) -> 'Matrix':
         if not isinstance(other, Number):
             raise TypeError('The operand should be a number')
         height, width = self.height, self.width
@@ -256,5 +259,5 @@ class Matrix(list):
 
     def _repr_latex_(self):
         rows = [' && '.join(['%.3f' % cell for cell in row]) for row in self]
-        latex = r'\begin{matrix} %s \end{matrix}' % r'\\'.join(rows)
+        latex = r'\begin{matrix} %s \end{matrix}' % r' \\ '.join(rows)
         return '$%s$' % latex

@@ -13,8 +13,7 @@ from __future__ import absolute_import
 
 from itertools import chain
 import math
-
-
+from typing import List, Tuple, Dict, Any, Optional, Callable, Union
 
 
 from .backends import choose_backend
@@ -39,20 +38,20 @@ __all__ = [
 
 
 #: Default initial mean of ratings.
-MU = 25.
+MU: float = 25.
 #: Default initial standard deviation of ratings.
-SIGMA = MU / 3
+SIGMA: float = MU / 3
 #: Default distance that guarantees about 76% chance of winning.
-BETA = SIGMA / 2
+BETA: float = SIGMA / 2
 #: Default dynamic factor.
-TAU = SIGMA / 100
+TAU: float = SIGMA / 100
 #: Default draw probability of the game.
-DRAW_PROBABILITY = .10
+DRAW_PROBABILITY: float = .10
 #: A basis to check reliability of the result.
-DELTA = 0.0001
+DELTA: float = 0.0001
 
 
-def calc_draw_probability(draw_margin, size, env=None):
+def calc_draw_probability(draw_margin: float, size: int, env: Optional['TrueSkill'] = None) -> float:
     """Calculates a draw-probability from the given ``draw_margin``.
 
     :param draw_margin: the draw-margin.
@@ -66,7 +65,7 @@ def calc_draw_probability(draw_margin, size, env=None):
     return 2 * env.cdf(draw_margin / (math.sqrt(size) * env.beta)) - 1
 
 
-def calc_draw_margin(draw_probability, size, env=None):
+def calc_draw_margin(draw_probability: float, size: int, env: Optional['TrueSkill'] = None) -> float:
     """Calculates a draw-margin from the given ``draw_probability``.
 
     :param draw_probability: the draw-probability.
@@ -80,7 +79,7 @@ def calc_draw_margin(draw_probability, size, env=None):
     return env.ppf((draw_probability + 1) / 2.) * math.sqrt(size) * env.beta
 
 
-def _team_sizes(rating_groups):
+def _team_sizes(rating_groups: List[Union[Dict[Any, 'Rating'], Tuple['Rating', ...]]]) -> List[int]:
     """Makes a size map of each teams."""
     team_sizes = [0]
     for group in rating_groups:
@@ -89,7 +88,7 @@ def _team_sizes(rating_groups):
     return team_sizes
 
 
-def _floating_point_error(env):
+def _floating_point_error(env: 'TrueSkill') -> FloatingPointError:
     if env.backend == 'mpmath':
         msg = 'Set "mpmath.mp.dps" to higher'
     else:
@@ -109,7 +108,7 @@ class Rating(Gaussian):
 
     """
 
-    def __init__(self, mu=None, sigma=None):
+    def __init__(self, mu: Optional[Union[float, tuple, 'Gaussian']] = None, sigma: Optional[float] = None):
         if isinstance(mu, tuple):
             mu, sigma = mu
         elif isinstance(mu, Gaussian):
@@ -120,19 +119,16 @@ class Rating(Gaussian):
             sigma = global_env().sigma
         super(Rating, self).__init__(mu, sigma)
 
-    def __int__(self):
+    def __int__(self) -> int:
         return int(self.mu)
 
-    def __long__(self):
-        return long(self.mu)
-
-    def __float__(self):
+    def __float__(self) -> float:
         return float(self.mu)
 
-    def __iter__(self):
+    def __iter__(self) -> iter:
         return iter((self.mu, self.sigma))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         c = type(self)
         args = ('.'.join([c.__module__, c.__name__]), self.mu, self.sigma)
         return '%s(mu=%.3f, sigma=%.3f)' % args
@@ -173,8 +169,8 @@ class TrueSkill(object):
 
     """
 
-    def __init__(self, mu=MU, sigma=SIGMA, beta=BETA, tau=TAU,
-                 draw_probability=DRAW_PROBABILITY, backend=None):
+    def __init__(self, mu: float = MU, sigma: float = SIGMA, beta: float = BETA, tau: float = TAU,
+                 draw_probability: Union[float, Callable[..., float]] = DRAW_PROBABILITY, backend: Optional[Union[str, Tuple[Callable[[float, float, float], float], Callable[[float, float, float], float], Callable[[float, float, float], float]]]] = None):
         self.mu = mu
         self.sigma = sigma
         self.beta = beta
@@ -186,7 +182,7 @@ class TrueSkill(object):
         else:
             self.cdf, self.pdf, self.ppf = choose_backend(backend)
 
-    def create_rating(self, mu=None, sigma=None):
+    def create_rating(self, mu: Optional[float] = None, sigma: Optional[float] = None) -> 'Rating':
         """Initializes new :class:`Rating` object, but it fixes default mu and
         sigma to the environment's.
 
@@ -201,7 +197,7 @@ class TrueSkill(object):
             sigma = self.sigma
         return Rating(mu, sigma)
 
-    def v_win(self, diff, draw_margin):
+    def v_win(self, diff: float, draw_margin: float) -> float:
         """The non-draw version of "V" function.  "V" calculates a variation of
         a mean.
         """
@@ -209,7 +205,7 @@ class TrueSkill(object):
         denom = self.cdf(x)
         return (self.pdf(x) / denom) if denom else -x
 
-    def v_draw(self, diff, draw_margin):
+    def v_draw(self, diff: float, draw_margin: float) -> float:
         """The draw version of "V" function."""
         abs_diff = abs(diff)
         a, b = draw_margin - abs_diff, -draw_margin - abs_diff
@@ -217,7 +213,7 @@ class TrueSkill(object):
         numer = self.pdf(b) - self.pdf(a)
         return ((numer / denom) if denom else a) * (-1 if diff < 0 else +1)
 
-    def w_win(self, diff, draw_margin):
+    def w_win(self, diff: float, draw_margin: float) -> float:
         """The non-draw version of "W" function.  "W" calculates a variation of
         a standard deviation.
         """
@@ -228,7 +224,7 @@ class TrueSkill(object):
             return w
         raise _floating_point_error(self)
 
-    def w_draw(self, diff, draw_margin):
+    def w_draw(self, diff: float, draw_margin: float) -> float:
         """The draw version of "W" function."""
         abs_diff = abs(diff)
         a, b = draw_margin - abs_diff, -draw_margin - abs_diff
@@ -238,7 +234,7 @@ class TrueSkill(object):
         v = self.v_draw(abs_diff, draw_margin)
         return (v ** 2) + (a * self.pdf(a) - b * self.pdf(b)) / denom
 
-    def validate_rating_groups(self, rating_groups):
+    def validate_rating_groups(self, rating_groups: List[Union[Dict[Any, 'Rating'], Tuple['Rating', ...]]]) -> Tuple[List[Tuple['Rating', ...]], Optional[List[Tuple[Any, ...]]]]:
         """Validates a ``rating_groups`` argument.  It should contain more than
         2 groups and all groups must not be empty.
 
@@ -288,7 +284,7 @@ class TrueSkill(object):
             keys = None
         return rating_groups, keys
 
-    def validate_weights(self, weights, rating_groups, keys=None):
+    def validate_weights(self, weights: Optional[Union[Dict[Tuple[int, int], float], List[Tuple[float, ...]]]], rating_groups: List[Tuple['Rating', ...]], keys: Optional[List[Tuple[Any, ...]]] = None) -> List[Tuple[float, ...]]:
         if weights is None:
             weights = [(1,) * len(g) for g in rating_groups]
         elif isinstance(weights, dict):
@@ -303,7 +299,7 @@ class TrueSkill(object):
         return weights
 
     def factor_graph_builders(self, rating_groups, ranks, weights):
-        """Makes nodes for the TrueSkill factor graph.
+        r"""Makes nodes for the TrueSkill factor graph.
 
         Here's an example of a TrueSkill factor graph when 1 vs 2 vs 1 match::
 
@@ -430,7 +426,7 @@ class TrueSkill(object):
             f.up()
         return layers
 
-    def rate(self, rating_groups, ranks=None, weights=None, min_delta=DELTA):
+    def rate(self, rating_groups: List[Union[Dict[Any, 'Rating'], Tuple['Rating', ...]]], ranks: Optional[List[int]] = None, weights: Optional[Union[Dict[Tuple[int, int], float], List[Tuple[float, ...]]]] = None, min_delta: float = DELTA) -> List[Union[Dict[Any, 'Rating'], Tuple['Rating', ...]]]:
         """Recalculates ratings by the ranking table::
 
            env = TrueSkill()  # uses default settings
@@ -512,8 +508,8 @@ class TrueSkill(object):
         # restore the structure with input dictionary keys
         return [dict(zip(keys[x], g)) for x, g in unsorting]
 
-    def quality(self, rating_groups, weights=None):
-        """Calculates the match quality of the given rating groups.  A result
+    def quality(self, rating_groups: List[Union[Dict[Any, 'Rating'], Tuple['Rating', ...]]], weights: Optional[Union[Dict[Tuple[int, int], float], List[Tuple[float, ...]]]] = None) -> float:
+        """Calculates the match quality of the given rating_groups.  A result
         is the draw probability in the association::
 
           env = TrueSkill()
@@ -567,7 +563,7 @@ class TrueSkill(object):
         s_arg = _ata.determinant() / middle.determinant()
         return math.exp(e_arg) * math.sqrt(s_arg)
 
-    def expose(self, rating):
+    def expose(self, rating: 'Rating') -> float:
         """Returns the value of the rating exposure.  It starts from 0 and
         converges to the mean.  Use this as a sort key in a leaderboard::
 
@@ -579,7 +575,7 @@ class TrueSkill(object):
         k = self.mu / self.sigma
         return rating.mu - k * rating.sigma
 
-    def make_as_global(self):
+    def make_as_global(self) -> 'TrueSkill':
         """Registers the environment as the global environment.
 
         >>> env = TrueSkill(mu=50)
@@ -595,7 +591,7 @@ class TrueSkill(object):
         """
         return setup(env=self)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         c = type(self)
         if callable(self.draw_probability):
             f = self.draw_probability
@@ -614,7 +610,7 @@ class TrueSkill(object):
                 'draw_probability=%s%s)' % args)
 
 
-def rate_1vs1(rating1, rating2, drawn=False, min_delta=DELTA, env=None):
+def rate_1vs1(rating1: 'Rating', rating2: 'Rating', drawn: bool = False, min_delta: float = DELTA, env: Optional['TrueSkill'] = None) -> Tuple['Rating', 'Rating']:
     """A shortcut to rate just 2 players in a head-to-head match::
 
        alice, bob = Rating(25), Rating(30)
@@ -640,7 +636,7 @@ def rate_1vs1(rating1, rating2, drawn=False, min_delta=DELTA, env=None):
     return teams[0][0], teams[1][0]
 
 
-def quality_1vs1(rating1, rating2, env=None):
+def quality_1vs1(rating1: 'Rating', rating2: 'Rating', env: Optional['TrueSkill'] = None) -> float:
     """A shortcut to calculate the match quality between just 2 players in
     a head-to-head match::
 
@@ -660,7 +656,7 @@ def quality_1vs1(rating1, rating2, env=None):
     return env.quality([(rating1,), (rating2,)])
 
 
-def global_env():
+def global_env() -> 'TrueSkill':
     """Gets the :class:`TrueSkill` object which is the global environment."""
     try:
         global_env.__trueskill__
@@ -670,8 +666,8 @@ def global_env():
     return global_env.__trueskill__
 
 
-def setup(mu=MU, sigma=SIGMA, beta=BETA, tau=TAU,
-          draw_probability=DRAW_PROBABILITY, backend=None, env=None):
+def setup(mu: float = MU, sigma: float = SIGMA, beta: float = BETA, tau: float = TAU,
+          draw_probability: Union[float, Callable[..., float]] = DRAW_PROBABILITY, backend: Optional[Union[str, Tuple[Callable[[float, float, float], float], Callable[[float, float, float], float], Callable[[float, float, float], float]]]] = None, env: Optional['TrueSkill'] = None) -> 'TrueSkill':
     """Setups the global environment.
 
     :param env: the specific :class:`TrueSkill` object to be the global
@@ -691,7 +687,7 @@ def setup(mu=MU, sigma=SIGMA, beta=BETA, tau=TAU,
     return env
 
 
-def rate(rating_groups, ranks=None, weights=None, min_delta=DELTA):
+def rate(rating_groups: List[Union[Dict[Any, 'Rating'], Tuple['Rating', ...]]], ranks: Optional[List[int]] = None, weights: Optional[Union[Dict[Tuple[int, int], float], List[Tuple[float, ...]]]] = None, min_delta: float = DELTA) -> List[Union[Dict[Any, 'Rating'], Tuple['Rating', ...]]]:
     """A proxy function for :meth:`TrueSkill.rate` of the global environment.
 
     .. versionadded:: 0.2
@@ -700,7 +696,7 @@ def rate(rating_groups, ranks=None, weights=None, min_delta=DELTA):
     return global_env().rate(rating_groups, ranks, weights, min_delta)
 
 
-def quality(rating_groups, weights=None):
+def quality(rating_groups: List[Union[Dict[Any, 'Rating'], Tuple['Rating', ...]]], weights: Optional[Union[Dict[Tuple[int, int], float], List[Tuple[float, ...]]]] = None) -> float:
     """A proxy function for :meth:`TrueSkill.quality` of the global
     environment.
 
@@ -710,7 +706,7 @@ def quality(rating_groups, weights=None):
     return global_env().quality(rating_groups, weights)
 
 
-def expose(rating):
+def expose(rating: 'Rating') -> float:
     """A proxy function for :meth:`TrueSkill.expose` of the global environment.
 
     .. versionadded:: 0.4

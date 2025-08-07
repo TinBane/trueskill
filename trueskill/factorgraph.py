@@ -12,6 +12,7 @@
 from __future__ import absolute_import
 
 import math
+from typing import Callable
 
 
 
@@ -180,13 +181,13 @@ class SumFactor(Factor):
 
 class TruncateFactor(Factor):
 
-    def __init__(self, var, v_func, w_func, draw_margin):
+    def __init__(self, var: Variable, v_func: Callable, w_func: Callable, draw_margin: float) -> None:
         super(TruncateFactor, self).__init__([var])
         self.v_func = v_func
         self.w_func = w_func
         self.draw_margin = draw_margin
 
-    def up(self):
+    def up(self) -> float:
         val = self.var
         msg = self.var[self]
         div = val / msg

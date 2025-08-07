@@ -10,7 +10,7 @@ See [the documentation](http://trueskill.org/).
 by [Heungsub Lee](http://subl.ee/)
 
 ***
-###TrueSkill
+## TrueSkill
 
 An implementation of the TrueSkill algorithm for Python.  TrueSkill is a rating
 system among game players and it is used on Xbox Live to rank and match

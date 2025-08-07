@@ -12,6 +12,7 @@
 from __future__ import absolute_import
 
 import math
+from typing import List, Optional, Callable, Tuple
 
 
 
@@ -111,7 +112,7 @@ def choose_backend(backend):
     raise ValueError('%r backend is not defined' % backend)
 
 
-def available_backends():
+def available_backends() -> List[Optional[str]]:
     """Detects list of available backends.  All of defined backends are
     ``None`` -- internal implementation, "mpmath", "scipy".
 
