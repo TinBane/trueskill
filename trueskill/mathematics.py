@@ -19,7 +19,7 @@ try:
 except ImportError:
     Number = (int, long, float, complex)
 
-from six import iterkeys
+
 
 
 __all__ = ['Gaussian', 'Matrix', 'inf']
@@ -126,7 +126,7 @@ class Matrix(list):
         elif isinstance(src, dict):
             if not height or not width:
                 w = h = 0
-                for r, c in iterkeys(src):
+                for r, c in src.keys():
                     if not height:
                         h = max(h, r + 1)
                     if not width:

@@ -14,10 +14,9 @@ from __future__ import absolute_import
 from itertools import chain
 import math
 
-from six import iteritems
-from six.moves import map, range, zip
 
-from .__about__ import __version__  # noqa
+
+
 from .backends import choose_backend
 from .factorgraph import (LikelihoodFactor, PriorFactor, SumFactor,
                           TruncateFactor, Variable)
@@ -279,7 +278,7 @@ class TrueSkill(object):
             keys = []
             for dict_rating_group in dict_rating_groups:
                 rating_group, key_group = [], []
-                for key, rating in iteritems(dict_rating_group):
+                for key, rating in dict_rating_group.items():
                     rating_group.append(rating)
                     key_group.append(key)
                 rating_groups.append(tuple(rating_group))

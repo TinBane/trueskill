@@ -13,7 +13,7 @@ from __future__ import absolute_import
 
 import math
 
-from six.moves import range
+
 
 
 __all__ = ['available_backends', 'choose_backend', 'cdf', 'pdf', 'ppf']

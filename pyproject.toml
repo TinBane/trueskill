@@ -1,0 +1,55 @@
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trueskill"
+version = "0.4.6"
+description = "The video game rating system."
+readme = "README.md"
+authors = [
+    {name = "Heungsub Lee", email = "heungsub@sublee.me"},
+    {name = "Adrian Beale", email = "jjq892t6hh@privaterelay.appleid.com"},
+]
+license = {file = "LICENSE"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: Jython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Topic :: Games/Entertainment",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+requires-python = ">=3.8"
+dependencies = []
+
+[project.urls]
+"Homepage" = "http://trueskill.org/"
+"GitHub" = "http://github.com/sublee/trueskill"
+"Documentation" = "http://trueskill.org/"
+
+
+[tool.setuptools]
+packages = ["trueskill"]
+
+[tool.pytest.ini_options]
+python_files = "trueskilltest.py"
+testpaths = "."
+confcutdir = "."
+
+[tool.flake8]
+ignore = "E301"
+import_order_style = "google"
+application-import-names = "trueskill, conftest"
