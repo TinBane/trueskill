@@ -108,7 +108,7 @@ class Rating(Gaussian):
 
     """
 
-    def __init__(self, mu: Optional[Union[float, tuple, 'Gaussian']] = None, sigma: Optional[float] = None):
+    def __init__(self, mu: Optional[Union[float, tuple, 'Gaussian']] = None, sigma: Optional[float] = None, identifier: Optional[str] = None):
         if isinstance(mu, tuple):
             mu, sigma = mu
         elif isinstance(mu, Gaussian):
@@ -118,6 +118,22 @@ class Rating(Gaussian):
         if sigma is None:
             sigma = global_env().sigma
         super(Rating, self).__init__(mu, sigma)
+        # Optional identifier (e.g., player id/UUID/name) to track this rating
+        self.identifier = identifier
+
+    def set_mu_sigma(self, mu: float, sigma: float) -> 'Rating':
+        """Updates this rating in-place with new mu and sigma values.
+
+        Returns self to allow chaining.
+        """
+        if sigma == 0:
+            raise ValueError('sigma**2 should be greater than 0')
+        self.pi = sigma ** -2
+        self.tau = self.pi * mu
+        # Invalidate cached properties
+        self._mu = None
+        self._sigma = None
+        return self
 
     def __int__(self) -> int:
         return int(self.mu)
@@ -426,7 +442,7 @@ class TrueSkill(object):
             f.up()
         return layers
 
-    def rate(self, rating_groups: List[Union[Dict[Any, 'Rating'], Tuple['Rating', ...]]], ranks: Optional[List[int]] = None, weights: Optional[Union[Dict[Tuple[int, int], float], List[Tuple[float, ...]]]] = None, min_delta: float = DELTA) -> List[Union[Dict[Any, 'Rating'], Tuple['Rating', ...]]]:
+    def rate(self, rating_groups: List[Union[Dict[Any, 'Rating'], Tuple['Rating', ...]]], ranks: Optional[List[int]] = None, weights: Optional[Union[Dict[Tuple[int, int], float], List[Tuple[float, ...]]]] = None, min_delta: float = DELTA, inplace: bool = False) -> List[Union[Dict[Any, 'Rating'], Tuple['Rating', ...]]]:
         """Recalculates ratings by the ranking table::
 
            env = TrueSkill()  # uses default settings
@@ -462,6 +478,9 @@ class TrueSkill(object):
         :param weights: weights of each players for "partial play".
         :param min_delta: each loop checks a delta of changes and the loop
                           will stop if the delta is less then this argument.
+        :param inplace: if True, update the provided :class:`Rating` objects in
+                        place instead of creating new ones. The return value
+                        will contain the same objects that were passed in.
         :returns: recalculated ratings same structure as ``rating_groups``.
         :raises: :exc:`FloatingPointError` occurs when winners have too lower
                  rating than losers.  higher floating-point precision couls
@@ -494,12 +513,26 @@ class TrueSkill(object):
         layers = self.run_schedule(*args)
         # make result
         rating_layer, team_sizes = layers[0], _team_sizes(sorted_rating_groups)
-        transformed_groups = []
-        for start, end in zip([0] + team_sizes[:-1], team_sizes):
-            group = []
-            for f in rating_layer[start:end]:
-                group.append(Rating(float(f.var.mu), float(f.var.sigma)))
-            transformed_groups.append(tuple(group))
+        # Flatten the sorted groups to map updates by index
+        flatten_sorted = sum(map(tuple, sorted_rating_groups), ())
+        if inplace:
+            # Update in place
+            for idx, f in enumerate(rating_layer):
+                flatten_sorted[idx].set_mu_sigma(float(f.var.mu), float(f.var.sigma))
+            # Re-slice the updated originals per team
+            transformed_groups = []
+            flat_index = 0
+            for start, end in zip([0] + team_sizes[:-1], team_sizes):
+                count = end - start
+                transformed_groups.append(tuple(flatten_sorted[flat_index:flat_index+count]))
+                flat_index += count
+        else:
+            transformed_groups = []
+            for start, end in zip([0] + team_sizes[:-1], team_sizes):
+                group = []
+                for f in rating_layer[start:end]:
+                    group.append(Rating(float(f.var.mu), float(f.var.sigma)))
+                transformed_groups.append(tuple(group))
         by_hint = lambda x: x[0]
         unsorting = sorted(zip((x for x, __ in sorting), transformed_groups),
                            key=by_hint)
@@ -610,7 +643,7 @@ class TrueSkill(object):
                 'draw_probability=%s%s)' % args)
 
 
-def rate_1vs1(rating1: 'Rating', rating2: 'Rating', drawn: bool = False, min_delta: float = DELTA, env: Optional['TrueSkill'] = None) -> Tuple['Rating', 'Rating']:
+def rate_1vs1(rating1: 'Rating', rating2: 'Rating', drawn: bool = False, min_delta: float = DELTA, env: Optional['TrueSkill'] = None, inplace: bool = False) -> Tuple['Rating', 'Rating']:
     """A shortcut to rate just 2 players in a head-to-head match::
 
        alice, bob = Rating(25), Rating(30)
@@ -624,6 +657,8 @@ def rate_1vs1(rating1: 'Rating', rating2: 'Rating', drawn: bool = False, min_del
     :param min_delta: will be passed to :meth:`rate`.
     :param env: the :class:`TrueSkill` object.  Defaults to the global
                 environment.
+    :param inplace: if True, update the provided :class:`Rating` objects in
+                    place and return the same objects.
     :returns: a tuple containing recalculated 2 ratings.
 
     .. versionadded:: 0.2
@@ -632,7 +667,7 @@ def rate_1vs1(rating1: 'Rating', rating2: 'Rating', drawn: bool = False, min_del
     if env is None:
         env = global_env()
     ranks = [0, 0 if drawn else 1]
-    teams = env.rate([(rating1,), (rating2,)], ranks, min_delta=min_delta)
+    teams = env.rate([(rating1,), (rating2,)], ranks, min_delta=min_delta, inplace=inplace)
     return teams[0][0], teams[1][0]
 
 
@@ -687,13 +722,13 @@ def setup(mu: float = MU, sigma: float = SIGMA, beta: float = BETA, tau: float =
     return env
 
 
-def rate(rating_groups: List[Union[Dict[Any, 'Rating'], Tuple['Rating', ...]]], ranks: Optional[List[int]] = None, weights: Optional[Union[Dict[Tuple[int, int], float], List[Tuple[float, ...]]]] = None, min_delta: float = DELTA) -> List[Union[Dict[Any, 'Rating'], Tuple['Rating', ...]]]:
+def rate(rating_groups: List[Union[Dict[Any, 'Rating'], Tuple['Rating', ...]]], ranks: Optional[List[int]] = None, weights: Optional[Union[Dict[Tuple[int, int], float], List[Tuple[float, ...]]]] = None, min_delta: float = DELTA, inplace: bool = False) -> List[Union[Dict[Any, 'Rating'], Tuple['Rating', ...]]]:
     """A proxy function for :meth:`TrueSkill.rate` of the global environment.
 
     .. versionadded:: 0.2
 
     """
-    return global_env().rate(rating_groups, ranks, weights, min_delta)
+    return global_env().rate(rating_groups, ranks, weights, min_delta, inplace)
 
 
 def quality(rating_groups: List[Union[Dict[Any, 'Rating'], Tuple['Rating', ...]]], weights: Optional[Union[Dict[Tuple[int, int], float], List[Tuple[float, ...]]]] = None) -> float:
