@@ -104,23 +104,21 @@ python scripts/benchmark.py \
 
 Force a specific math backend and fail if unavailable using `--backend`:
 
-```
+
 # python-native (pure) backend
-python scripts/benchmark.py --players 400 --matches 4000 --team-size 1 --inplace --backend python
+python scripts/benchmark.py --players 400 --matches 20000 --team-size 1 --inplace --backend python
 
 # fast (Cython) backend
-python scripts/benchmark.py --players 400 --matches 4000 --team-size 1 --inplace --backend fast
+python scripts/benchmark.py --players 400 --matches 20000 --team-size 1 --inplace --backend fast
+
+On a sample run (Apple Silicon, Python 3.12), 1v1 in-place, 400 players, 20k matches:
+
+
+python  backend: ~5.6k matches/s
+fast    backend: ~11.4k matches/s
 ```
 
-On a sample run (Apple Silicon, Python 3.12), 1v1 in-place, 400 players, 4k matches:
-
-```
-python  backend: ~3.4k matches/s
-fast    backend: ~5.8k matches/s
-```
-
-The script exits with an error if the requested backend is not available.
-```
+The script exits with an error if the requested backend is not available. Fast Cython backend will have more impact on older versions of python (pre 3.11ish), python performance has somewhat caught up and we have typing hints to enable native python performance improvements.
 
 Flags:
 - `--players`, `--matches`, `--team-size`
@@ -128,6 +126,7 @@ Flags:
 - `--inplace` (in-place updates)
 - `--no-1v1-fastpath` (use generic path even for 1v1)
 - `--seed`, `--mu`, `--sigma`, `--beta`, `--tau`
+
 
 ***
 ## Links

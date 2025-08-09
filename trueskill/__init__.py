@@ -360,11 +360,16 @@ class TrueSkill(object):
                 end = team_sizes[team]
                 child_perf_vars = perf_vars[start:end]
                 coeffs = flatten_weights[start:end]
-                yield SumFactor(team_perf_var, child_perf_vars, coeffs)
+                f = SumFactor(team_perf_var, child_perf_vars, coeffs)
+                # attach env for fast backend gating
+                setattr(f, '_env', self)
+                yield f
         def build_team_diff_layer():
             for team, team_diff_var in enumerate(team_diff_vars):
-                yield SumFactor(team_diff_var,
-                                team_perf_vars[team:team + 2], [+1, -1])
+                f = SumFactor(team_diff_var,
+                              team_perf_vars[team:team + 2], [+1, -1])
+                setattr(f, '_env', self)
+                yield f
         def build_trunc_layer():
             for x, team_diff_var in enumerate(team_diff_vars):
                 if callable(self.draw_probability):
@@ -381,8 +386,9 @@ class TrueSkill(object):
                     v_func, w_func = self.v_draw, self.w_draw
                 else:
                     v_func, w_func = self.v_win, self.w_win
-                yield TruncateFactor(team_diff_var,
-                                     v_func, w_func, draw_margin)
+                f = TruncateFactor(team_diff_var, v_func, w_func, draw_margin)
+                setattr(f, '_env', self)
+                yield f
         # build layers
         return (build_rating_layer, build_perf_layer, build_team_perf_layer,
                 build_team_diff_layer, build_trunc_layer)
@@ -666,6 +672,24 @@ def rate_1vs1(rating1: 'Rating', rating2: 'Rating', drawn: bool = False, min_del
     """
     if env is None:
         env = global_env()
+    # Fast closed-form path when backend='fast'
+    if getattr(env, 'backend', None) == 'fast':
+        try:
+            from . import _fastmath
+            mu1p, s1p, mu2p, s2p = _fastmath.rate_1vs1_fast(
+                rating1.mu, rating1.sigma,
+                rating2.mu, rating2.sigma,
+                env.beta, env.tau, env.draw_probability,
+                drawn
+            )
+            if inplace:
+                rating1.set_mu_sigma(mu1p, s1p)
+                rating2.set_mu_sigma(mu2p, s2p)
+                return rating1, rating2
+            return Rating(mu1p, s1p), Rating(mu2p, s2p)
+        except Exception:
+            # fall back to generic path
+            pass
     ranks = [0, 0 if drawn else 1]
     teams = env.rate([(rating1,), (rating2,)], ranks, min_delta=min_delta, inplace=inplace)
     return teams[0][0], teams[1][0]

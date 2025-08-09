@@ -159,6 +159,20 @@ class SumFactor(Factor):
         return self.update(self.terms[index], vals, msgs, coeffs)
 
     def update(self, var, vals, msgs, coeffs):
+        # Try fast kernel first only when env requests fast backend
+        try:
+            env = getattr(self, '_env', None)
+            if env is not None and getattr(env, 'backend', None) == 'fast':
+                from . import _fastmath
+                div_pi, div_tau = [], []
+                for val, msg in zip(vals, msgs):
+                    div = val / msg
+                    div_pi.append(float(div.pi))
+                    div_tau.append(float(div.tau))
+                pi, tau = _fastmath.sum_update(div_pi, div_tau, list(coeffs))
+                return var.update_message(self, pi, tau)
+        except Exception:
+            pass
         pi_inv = 0
         mu = 0
         for val, msg, coeff in zip(vals, msgs, coeffs):
@@ -192,6 +206,16 @@ class TruncateFactor(Factor):
         msg = self.var[self]
         div = val / msg
         sqrt_pi = math.sqrt(div.pi)
+        # Try fast kernel first only when env requests fast backend
+        try:
+            env = getattr(self, '_env', None)
+            if env is not None and getattr(env, 'backend', None) == 'fast':
+                from . import _fastmath
+                is_draw = getattr(self.v_func, '__name__', '') == 'v_draw'
+                pi, tau = _fastmath.truncate_up(float(div.pi), float(div.tau), float(self.draw_margin), bool(is_draw))
+                return val.update_value(self, pi, tau)
+        except Exception:
+            pass
         args = (div.tau / sqrt_pi, self.draw_margin * sqrt_pi)
         v = self.v_func(*args)
         w = self.w_func(*args)

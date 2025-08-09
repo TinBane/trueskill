@@ -46,6 +46,7 @@ packages = ["trueskill"]
 
 [project.optional-dependencies]
 fast = ["Cython>=0.29.36"]
+cython = ["Cython>=0.29.36"]
 
 [tool.pytest.ini_options]
 python_files = "trueskilltest.py"

@@ -5,17 +5,29 @@ from setuptools import setup, Extension
 
 
 def build_ext_modules():
+    # Prefer Cython if available; otherwise, compile from generated C file
+    pyx_path = os.path.join("trueskill", "_fastmath.pyx")
+    c_path = os.path.join("trueskill", "_fastmath.c")
     try:
-        from Cython.Build import cythonize
+        from Cython.Build import cythonize  # type: ignore
+        ext = Extension(
+            name="trueskill._fastmath",
+            sources=[pyx_path],
+            extra_compile_args=["-O3"],
+            language="c",
+        )
+        return cythonize([ext], language_level=3)
     except Exception:
+        if os.path.exists(c_path):
+            return [
+                Extension(
+                    name="trueskill._fastmath",
+                    sources=[c_path],
+                    extra_compile_args=["-O3"],
+                    language="c",
+                )
+            ]
         return []
-    ext = Extension(
-        name="trueskill._fastmath",
-        sources=[os.path.join("trueskill", "_fastmath.pyx")],
-        extra_compile_args=["-O3"],
-        language="c",
-    )
-    return cythonize([ext], language_level=3)
 
 
 if __name__ == "__main__":
