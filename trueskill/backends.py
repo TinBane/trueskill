@@ -109,6 +109,12 @@ def choose_backend(backend):
         except ImportError:
             raise ImportError('Install "scipy" to use this backend')
         return norm.cdf, norm.pdf, norm.ppf
+    elif backend == 'fast':
+        try:
+            from . import _fastmath
+        except Exception as e:
+            raise ImportError('Cython fast backend not available: %r' % (e,))
+        return _fastmath.cdf, _fastmath.pdf, _fastmath.ppf
     raise ValueError('%r backend is not defined' % backend)
 
 
@@ -133,4 +139,10 @@ def available_backends() -> List[Optional[str]]:
         except ImportError:
             continue
         backends.append(backend)
+    # Detect fast backend
+    try:
+        from . import _fastmath  # noqa: F401
+        backends.append('fast')
+    except Exception:
+        pass
     return backends
